@@ -7,12 +7,14 @@ public struct Run {
     public var properties: RunProperties
     public var drawing: Drawing?  // 圖片繪圖元素
     public var rawXML: String?    // 原始 XML（用於欄位代碼、SDT 等進階功能）
+    public var semantic: SemanticAnnotation?  // 語義標註
 
     public init(text: String, properties: RunProperties = RunProperties()) {
         self.text = text
         self.properties = properties
         self.drawing = nil
         self.rawXML = nil
+        self.semantic = nil
     }
 }
 

@@ -16,7 +16,13 @@ public struct DocxReader {
             ZipHelper.cleanup(tempDir)
         }
 
-        // 2. 讀取 document.xml
+        // 2. 讀取關係檔案 word/_rels/document.xml.rels
+        let relationships = try parseRelationships(from: tempDir)
+
+        // 3. 提取圖片資源
+        let images = try extractImages(from: tempDir, relationships: relationships)
+
+        // 4. 讀取 document.xml
         let documentURL = tempDir.appendingPathComponent("word/document.xml")
         guard FileManager.default.fileExists(atPath: documentURL.path) else {
             throw WordError.parseError("找不到 word/document.xml")
@@ -25,11 +31,8 @@ public struct DocxReader {
         let documentData = try Data(contentsOf: documentURL)
         let documentXML = try XMLDocument(data: documentData)
 
-        // 3. 解析文件內容
+        // 5. 讀取 styles.xml（先解析，用於語義標註）
         var document = WordDocument()
-        document.body = try parseBody(from: documentXML)
-
-        // 4. 讀取 styles.xml（可選）
         let stylesURL = tempDir.appendingPathComponent("word/styles.xml")
         if FileManager.default.fileExists(atPath: stylesURL.path) {
             let stylesData = try Data(contentsOf: stylesURL)
@@ -37,7 +40,24 @@ public struct DocxReader {
             document.styles = try parseStyles(from: stylesXML)
         }
 
-        // 5. 讀取 core.xml（可選）
+        // 6. 讀取 numbering.xml（可選，用於清單語義標註）
+        let numberingURL = tempDir.appendingPathComponent("word/numbering.xml")
+        if FileManager.default.fileExists(atPath: numberingURL.path) {
+            let numberingData = try Data(contentsOf: numberingURL)
+            let numberingXML = try XMLDocument(data: numberingData)
+            document.numbering = try parseNumbering(from: numberingXML)
+        }
+
+        // 7. 解析文件內容（傳入 styles 和 numbering 用於語義標註）
+        document.body = try parseBody(
+            from: documentXML,
+            relationships: relationships,
+            styles: document.styles,
+            numbering: document.numbering
+        )
+        document.images = images
+
+        // 8. 讀取 core.xml（可選）
         let coreURL = tempDir.appendingPathComponent("docProps/core.xml")
         if FileManager.default.fileExists(atPath: coreURL.path) {
             let coreData = try Data(contentsOf: coreURL)
@@ -45,7 +65,7 @@ public struct DocxReader {
             document.properties = try parseCoreProperties(from: coreXML)
         }
 
-        // 6. 讀取 comments.xml（可選）
+        // 8. 讀取 comments.xml（可選）
         let commentsURL = tempDir.appendingPathComponent("word/comments.xml")
         if FileManager.default.fileExists(atPath: commentsURL.path) {
             let commentsData = try Data(contentsOf: commentsURL)
@@ -56,9 +76,123 @@ public struct DocxReader {
         return document
     }
 
+    // MARK: - Relationships Parsing
+
+    /// 解析關係檔案
+    private static func parseRelationships(from tempDir: URL) throws -> RelationshipsCollection {
+        var collection = RelationshipsCollection()
+
+        let relsURL = tempDir.appendingPathComponent("word/_rels/document.xml.rels")
+        guard FileManager.default.fileExists(atPath: relsURL.path) else {
+            // 沒有關係檔案也是合法的
+            return collection
+        }
+
+        let relsData = try Data(contentsOf: relsURL)
+        let relsXML = try XMLDocument(data: relsData)
+
+        // 取得所有 Relationship 節點
+        let relNodes = try relsXML.nodes(forXPath: "//*[local-name()='Relationship']")
+
+        for node in relNodes {
+            guard let element = node as? XMLElement else { continue }
+
+            guard let id = element.attribute(forName: "Id")?.stringValue,
+                  let typeStr = element.attribute(forName: "Type")?.stringValue,
+                  let target = element.attribute(forName: "Target")?.stringValue else {
+                continue
+            }
+
+            let relationship = Relationship(
+                id: id,
+                type: RelationshipType(rawValue: typeStr),
+                target: target
+            )
+            collection.relationships.append(relationship)
+        }
+
+        return collection
+    }
+
+    // MARK: - Image Extraction
+
+    /// 從 word/media/ 提取圖片
+    private static func extractImages(from tempDir: URL, relationships: RelationshipsCollection) throws -> [ImageReference] {
+        var images: [ImageReference] = []
+
+        let mediaDir = tempDir.appendingPathComponent("word/media")
+        guard FileManager.default.fileExists(atPath: mediaDir.path) else {
+            // 沒有 media 目錄也是合法的
+            return images
+        }
+
+        // 建立 target → rId 的映射
+        var targetToId: [String: String] = [:]
+        for rel in relationships.imageRelationships {
+            // target 可能是 "media/image1.png" 或 "../media/image1.png"
+            let normalizedTarget = rel.target.replacingOccurrences(of: "../", with: "")
+            targetToId[normalizedTarget] = rel.id
+        }
+
+        // 讀取 media 目錄中的所有檔案
+        let contents = try FileManager.default.contentsOfDirectory(atPath: mediaDir.path)
+
+        for fileName in contents {
+            let fileURL = mediaDir.appendingPathComponent(fileName)
+
+            // 檢查是否為檔案（不是目錄）
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDirectory),
+                  !isDirectory.boolValue else {
+                continue
+            }
+
+            // 讀取檔案資料
+            let data = try Data(contentsOf: fileURL)
+
+            // 找對應的 relationship ID
+            let targetPath = "media/\(fileName)"
+            let relationshipId = targetToId[targetPath] ?? "rId_\(fileName)"
+
+            // 取得 MIME 類型
+            let ext = (fileName as NSString).pathExtension.lowercased()
+            let contentType = mimeType(for: ext)
+
+            let imageRef = ImageReference(
+                id: relationshipId,
+                fileName: fileName,
+                contentType: contentType,
+                data: data
+            )
+            images.append(imageRef)
+        }
+
+        return images
+    }
+
+    /// 取得副檔名對應的 MIME 類型
+    private static func mimeType(for ext: String) -> String {
+        switch ext {
+        case "png": return "image/png"
+        case "jpg", "jpeg": return "image/jpeg"
+        case "gif": return "image/gif"
+        case "bmp": return "image/bmp"
+        case "tiff", "tif": return "image/tiff"
+        case "webp": return "image/webp"
+        case "emf": return "image/x-emf"
+        case "wmf": return "image/x-wmf"
+        default: return "application/octet-stream"
+        }
+    }
+
     // MARK: - Body Parsing
 
-    private static func parseBody(from xml: XMLDocument) throws -> Body {
+    private static func parseBody(
+        from xml: XMLDocument,
+        relationships: RelationshipsCollection,
+        styles: [Style],
+        numbering: Numbering
+    ) throws -> Body {
         var body = Body()
 
         // 取得所有段落和表格節點
@@ -69,10 +203,20 @@ public struct DocxReader {
             guard let element = node as? XMLElement else { continue }
 
             if element.localName == "p" {
-                let paragraph = try parseParagraph(from: element)
+                let paragraph = try parseParagraph(
+                    from: element,
+                    relationships: relationships,
+                    styles: styles,
+                    numbering: numbering
+                )
                 body.children.append(.paragraph(paragraph))
             } else if element.localName == "tbl" {
-                let table = try parseTable(from: element)
+                let table = try parseTable(
+                    from: element,
+                    relationships: relationships,
+                    styles: styles,
+                    numbering: numbering
+                )
                 body.children.append(.table(table))
                 body.tables.append(table)
             }
@@ -83,7 +227,12 @@ public struct DocxReader {
 
     // MARK: - Paragraph Parsing
 
-    private static func parseParagraph(from element: XMLElement) throws -> Paragraph {
+    private static func parseParagraph(
+        from element: XMLElement,
+        relationships: RelationshipsCollection,
+        styles: [Style],
+        numbering: Numbering
+    ) throws -> Paragraph {
         var paragraph = Paragraph()
 
         // 解析段落屬性
@@ -93,9 +242,17 @@ public struct DocxReader {
 
         // 解析 Runs
         for run in element.elements(forName: "w:r") {
-            let parsedRun = try parseRun(from: run)
+            let parsedRun = try parseRun(from: run, relationships: relationships)
             paragraph.runs.append(parsedRun)
         }
+
+        // 🆕 語義標註
+        paragraph.semantic = detectParagraphSemantic(
+            properties: paragraph.properties,
+            runs: paragraph.runs,
+            styles: styles,
+            numbering: numbering
+        )
 
         return paragraph
     }
@@ -151,6 +308,27 @@ public struct DocxReader {
             props.indentation = indentation
         }
 
+        // 編號/項目符號 (w:numPr)
+        if let numPr = element.elements(forName: "w:numPr").first {
+            var numInfo: NumberingInfo?
+            var numId: Int?
+            var level: Int = 0
+
+            if let ilvl = numPr.elements(forName: "w:ilvl").first,
+               let val = ilvl.attribute(forName: "w:val")?.stringValue {
+                level = Int(val) ?? 0
+            }
+            if let numIdEl = numPr.elements(forName: "w:numId").first,
+               let val = numIdEl.attribute(forName: "w:val")?.stringValue {
+                numId = Int(val)
+            }
+
+            if let id = numId {
+                numInfo = NumberingInfo(numId: id, level: level)
+            }
+            props.numbering = numInfo
+        }
+
         // 分頁控制
         if element.elements(forName: "w:keepNext").first != nil {
             props.keepNext = true
@@ -167,7 +345,7 @@ public struct DocxReader {
 
     // MARK: - Run Parsing
 
-    private static func parseRun(from element: XMLElement) throws -> Run {
+    private static func parseRun(from element: XMLElement, relationships: RelationshipsCollection) throws -> Run {
         var run = Run(text: "")
 
         // 解析 Run 屬性
@@ -180,7 +358,185 @@ public struct DocxReader {
             run.text += t.stringValue ?? ""
         }
 
+        // 解析圖片 (w:drawing)
+        if let drawingElement = element.elements(forName: "w:drawing").first {
+            run.drawing = try parseDrawing(from: drawingElement, relationships: relationships)
+            // 🆕 圖片語義標註（標為 unknown，等後續分類）
+            run.semantic = SemanticAnnotation.unknownImage
+        }
+
+        // 🆕 檢查是否為 OMML 公式 (m:oMath 或 m:oMathPara)
+        let oMathNodes = try element.nodes(forXPath: ".//*[local-name()='oMath' or local-name()='oMathPara']")
+        if !oMathNodes.isEmpty {
+            // 保存原始 XML 用於後續轉換
+            if let oMathElement = oMathNodes.first {
+                run.rawXML = oMathElement.xmlString
+            }
+            run.semantic = SemanticAnnotation.ommlFormula
+        }
+
         return run
+    }
+
+    // MARK: - Drawing Parsing
+
+    /// 解析 <w:drawing> 元素
+    private static func parseDrawing(from element: XMLElement, relationships: RelationshipsCollection) throws -> Drawing? {
+        // 尋找 inline 或 anchor 元素
+        // 使用 XPath 搜尋（因為可能有命名空間前綴）
+        let inlineNodes = try element.nodes(forXPath: ".//*[local-name()='inline']")
+        let anchorNodes = try element.nodes(forXPath: ".//*[local-name()='anchor']")
+
+        if let inlineElement = inlineNodes.first as? XMLElement {
+            return try parseInlineDrawing(from: inlineElement, relationships: relationships)
+        } else if let anchorElement = anchorNodes.first as? XMLElement {
+            return try parseAnchorDrawing(from: anchorElement, relationships: relationships)
+        }
+
+        return nil
+    }
+
+    /// 解析 inline drawing
+    private static func parseInlineDrawing(from element: XMLElement, relationships: RelationshipsCollection) throws -> Drawing? {
+        // 取得尺寸 (wp:extent)
+        let extentNodes = try element.nodes(forXPath: ".//*[local-name()='extent']")
+        guard let extentElement = extentNodes.first as? XMLElement,
+              let cxStr = extentElement.attribute(forName: "cx")?.stringValue,
+              let cyStr = extentElement.attribute(forName: "cy")?.stringValue,
+              let cx = Int(cxStr),
+              let cy = Int(cyStr) else {
+            return nil
+        }
+
+        // 取得圖片參照 (a:blip r:embed)
+        let blipNodes = try element.nodes(forXPath: ".//*[local-name()='blip']")
+        guard let blipElement = blipNodes.first as? XMLElement else {
+            return nil
+        }
+
+        // r:embed 屬性包含 relationship ID
+        let embedId = blipElement.attribute(forName: "r:embed")?.stringValue
+            ?? blipElement.attribute(forName: "embed")?.stringValue
+
+        guard let imageId = embedId else {
+            return nil
+        }
+
+        // 取得圖片名稱和描述 (wp:docPr)
+        let docPrNodes = try element.nodes(forXPath: ".//*[local-name()='docPr']")
+        var name = "Picture"
+        var description = ""
+
+        if let docPrElement = docPrNodes.first as? XMLElement {
+            if let nameAttr = docPrElement.attribute(forName: "name")?.stringValue {
+                name = nameAttr
+            }
+            if let descrAttr = docPrElement.attribute(forName: "descr")?.stringValue {
+                description = descrAttr
+            }
+        }
+
+        let drawing = Drawing(
+            type: .inline,
+            width: cx,
+            height: cy,
+            imageId: imageId,
+            name: name,
+            description: description
+        )
+
+        return drawing
+    }
+
+    /// 解析 anchor drawing (浮動圖片)
+    private static func parseAnchorDrawing(from element: XMLElement, relationships: RelationshipsCollection) throws -> Drawing? {
+        // 取得尺寸
+        let extentNodes = try element.nodes(forXPath: ".//*[local-name()='extent']")
+        guard let extentElement = extentNodes.first as? XMLElement,
+              let cxStr = extentElement.attribute(forName: "cx")?.stringValue,
+              let cyStr = extentElement.attribute(forName: "cy")?.stringValue,
+              let cx = Int(cxStr),
+              let cy = Int(cyStr) else {
+            return nil
+        }
+
+        // 取得圖片參照
+        let blipNodes = try element.nodes(forXPath: ".//*[local-name()='blip']")
+        guard let blipElement = blipNodes.first as? XMLElement else {
+            return nil
+        }
+
+        let embedId = blipElement.attribute(forName: "r:embed")?.stringValue
+            ?? blipElement.attribute(forName: "embed")?.stringValue
+
+        guard let imageId = embedId else {
+            return nil
+        }
+
+        // 取得名稱和描述
+        let docPrNodes = try element.nodes(forXPath: ".//*[local-name()='docPr']")
+        var name = "Picture"
+        var description = ""
+
+        if let docPrElement = docPrNodes.first as? XMLElement {
+            if let nameAttr = docPrElement.attribute(forName: "name")?.stringValue {
+                name = nameAttr
+            }
+            if let descrAttr = docPrElement.attribute(forName: "descr")?.stringValue {
+                description = descrAttr
+            }
+        }
+
+        var drawing = Drawing(
+            type: .anchor,
+            width: cx,
+            height: cy,
+            imageId: imageId,
+            name: name,
+            description: description
+        )
+
+        // 解析定位屬性
+        var anchorPos = AnchorPosition()
+
+        // 水平定位
+        let posHNodes = try element.nodes(forXPath: ".//*[local-name()='positionH']")
+        if let posHElement = posHNodes.first as? XMLElement {
+            if let relativeFrom = posHElement.attribute(forName: "relativeFrom")?.stringValue {
+                anchorPos.horizontalRelativeFrom = HorizontalRelativeFrom(rawValue: relativeFrom) ?? .column
+            }
+
+            // posOffset 或 align
+            let offsetNodes = try posHElement.nodes(forXPath: ".//*[local-name()='posOffset']")
+            let alignNodes = try posHElement.nodes(forXPath: ".//*[local-name()='align']")
+
+            if let offsetElement = offsetNodes.first, let offsetStr = offsetElement.stringValue, let offset = Int(offsetStr) {
+                anchorPos.horizontalOffset = offset
+            } else if let alignElement = alignNodes.first, let alignStr = alignElement.stringValue {
+                anchorPos.horizontalAlignment = HorizontalAlignment(rawValue: alignStr)
+            }
+        }
+
+        // 垂直定位
+        let posVNodes = try element.nodes(forXPath: ".//*[local-name()='positionV']")
+        if let posVElement = posVNodes.first as? XMLElement {
+            if let relativeFrom = posVElement.attribute(forName: "relativeFrom")?.stringValue {
+                anchorPos.verticalRelativeFrom = VerticalRelativeFrom(rawValue: relativeFrom) ?? .paragraph
+            }
+
+            let offsetNodes = try posVElement.nodes(forXPath: ".//*[local-name()='posOffset']")
+            let alignNodes = try posVElement.nodes(forXPath: ".//*[local-name()='align']")
+
+            if let offsetElement = offsetNodes.first, let offsetStr = offsetElement.stringValue, let offset = Int(offsetStr) {
+                anchorPos.verticalOffset = offset
+            } else if let alignElement = alignNodes.first, let alignStr = alignElement.stringValue {
+                anchorPos.verticalAlignment = VerticalAlignment(rawValue: alignStr)
+            }
+        }
+
+        drawing.anchorPosition = anchorPos
+
+        return drawing
     }
 
     private static func parseRunProperties(from element: XMLElement) -> RunProperties {
@@ -242,7 +598,12 @@ public struct DocxReader {
 
     // MARK: - Table Parsing
 
-    private static func parseTable(from element: XMLElement) throws -> Table {
+    private static func parseTable(
+        from element: XMLElement,
+        relationships: RelationshipsCollection,
+        styles: [Style],
+        numbering: Numbering
+    ) throws -> Table {
         var table = Table()
 
         // 解析表格屬性
@@ -252,7 +613,12 @@ public struct DocxReader {
 
         // 解析表格行
         for tr in element.elements(forName: "w:tr") {
-            let row = try parseTableRow(from: tr)
+            let row = try parseTableRow(
+                from: tr,
+                relationships: relationships,
+                styles: styles,
+                numbering: numbering
+            )
             table.rows.append(row)
         }
 
@@ -287,7 +653,12 @@ public struct DocxReader {
         return props
     }
 
-    private static func parseTableRow(from element: XMLElement) throws -> TableRow {
+    private static func parseTableRow(
+        from element: XMLElement,
+        relationships: RelationshipsCollection,
+        styles: [Style],
+        numbering: Numbering
+    ) throws -> TableRow {
         var row = TableRow()
 
         // 解析行屬性
@@ -297,7 +668,12 @@ public struct DocxReader {
 
         // 解析儲存格
         for tc in element.elements(forName: "w:tc") {
-            let cell = try parseTableCell(from: tc)
+            let cell = try parseTableCell(
+                from: tc,
+                relationships: relationships,
+                styles: styles,
+                numbering: numbering
+            )
             row.cells.append(cell)
         }
 
@@ -330,7 +706,12 @@ public struct DocxReader {
         return props
     }
 
-    private static func parseTableCell(from element: XMLElement) throws -> TableCell {
+    private static func parseTableCell(
+        from element: XMLElement,
+        relationships: RelationshipsCollection,
+        styles: [Style],
+        numbering: Numbering
+    ) throws -> TableCell {
         var cell = TableCell()
         cell.paragraphs = []
 
@@ -339,9 +720,14 @@ public struct DocxReader {
             cell.properties = parseTableCellProperties(from: tcPr)
         }
 
-        // 解析段落
+        // 解析段落（傳入 styles 和 numbering 用於語義標註）
         for p in element.elements(forName: "w:p") {
-            let para = try parseParagraph(from: p)
+            let para = try parseParagraph(
+                from: p,
+                relationships: relationships,
+                styles: styles,
+                numbering: numbering
+            )
             cell.paragraphs.append(para)
         }
 
@@ -527,6 +913,217 @@ public struct DocxReader {
         }
 
         return props
+    }
+
+    // MARK: - Numbering Parsing
+
+    /// 解析 numbering.xml
+    private static func parseNumbering(from xml: XMLDocument) throws -> Numbering {
+        var numbering = Numbering()
+
+        // 解析抽象編號定義 (w:abstractNum)
+        let abstractNumNodes = try xml.nodes(forXPath: "//*[local-name()='abstractNum']")
+        for node in abstractNumNodes {
+            guard let element = node as? XMLElement,
+                  let abstractNumIdStr = element.attribute(forName: "w:abstractNumId")?.stringValue,
+                  let abstractNumId = Int(abstractNumIdStr) else { continue }
+
+            var levels: [Level] = []
+
+            // 解析層級 (w:lvl)
+            for lvlElement in element.elements(forName: "w:lvl") {
+                guard let ilvlStr = lvlElement.attribute(forName: "w:ilvl")?.stringValue,
+                      let ilvl = Int(ilvlStr) else { continue }
+
+                var numFmt: NumberFormat = .decimal
+                var lvlText = ""
+                var start = 1
+                var indent = 720  // 預設縮排
+                var fontName: String?
+
+                // 編號格式 (w:numFmt)
+                if let numFmtEl = lvlElement.elements(forName: "w:numFmt").first,
+                   let val = numFmtEl.attribute(forName: "w:val")?.stringValue {
+                    numFmt = NumberFormat(rawValue: val) ?? .decimal
+                }
+
+                // 文字格式 (w:lvlText)
+                if let lvlTextEl = lvlElement.elements(forName: "w:lvlText").first,
+                   let val = lvlTextEl.attribute(forName: "w:val")?.stringValue {
+                    lvlText = val
+                }
+
+                // 起始值 (w:start)
+                if let startEl = lvlElement.elements(forName: "w:start").first,
+                   let val = startEl.attribute(forName: "w:val")?.stringValue {
+                    start = Int(val) ?? 1
+                }
+
+                // 縮排 (w:pPr/w:ind)
+                if let pPr = lvlElement.elements(forName: "w:pPr").first,
+                   let ind = pPr.elements(forName: "w:ind").first,
+                   let left = ind.attribute(forName: "w:left")?.stringValue {
+                    indent = Int(left) ?? 720
+                }
+
+                // 字型 (w:rPr/w:rFonts)
+                if let rPr = lvlElement.elements(forName: "w:rPr").first,
+                   let rFonts = rPr.elements(forName: "w:rFonts").first,
+                   let ascii = rFonts.attribute(forName: "w:ascii")?.stringValue {
+                    fontName = ascii
+                }
+
+                let level = Level(
+                    ilvl: ilvl,
+                    start: start,
+                    numFmt: numFmt,
+                    lvlText: lvlText,
+                    indent: indent,
+                    fontName: fontName
+                )
+                levels.append(level)
+            }
+
+            let abstractNum = AbstractNum(abstractNumId: abstractNumId, levels: levels)
+            numbering.abstractNums.append(abstractNum)
+        }
+
+        // 解析編號實例 (w:num)
+        let numNodes = try xml.nodes(forXPath: "//*[local-name()='num']")
+        for node in numNodes {
+            guard let element = node as? XMLElement,
+                  let numIdStr = element.attribute(forName: "w:numId")?.stringValue,
+                  let numId = Int(numIdStr) else { continue }
+
+            // 取得對應的 abstractNumId
+            guard let abstractNumIdRef = element.elements(forName: "w:abstractNumId").first,
+                  let abstractNumIdStr = abstractNumIdRef.attribute(forName: "w:val")?.stringValue,
+                  let abstractNumId = Int(abstractNumIdStr) else { continue }
+
+            let num = Num(numId: numId, abstractNumId: abstractNumId)
+            numbering.nums.append(num)
+        }
+
+        return numbering
+    }
+
+    // MARK: - Semantic Detection
+
+    /// 偵測段落的語義類型
+    private static func detectParagraphSemantic(
+        properties: ParagraphProperties,
+        runs: [Run],
+        styles: [Style],
+        numbering: Numbering
+    ) -> SemanticAnnotation? {
+        // 1. 檢查標題樣式
+        if let styleName = properties.style {
+            if let headingLevel = detectHeadingLevel(styleName: styleName, styles: styles) {
+                return SemanticAnnotation.heading(headingLevel)
+            }
+
+            // 檢查 Title/Subtitle
+            let lowerStyle = styleName.lowercased()
+            if lowerStyle == "title" || lowerStyle.contains("title") {
+                return SemanticAnnotation(type: .title)
+            }
+            if lowerStyle == "subtitle" || lowerStyle.contains("subtitle") {
+                return SemanticAnnotation(type: .subtitle)
+            }
+        }
+
+        // 2. 檢查編號/項目符號
+        if let numInfo = properties.numbering {
+            let isBullet = isBulletList(numId: numInfo.numId, numbering: numbering)
+            if isBullet {
+                return SemanticAnnotation.bulletItem(level: numInfo.level)
+            } else {
+                return SemanticAnnotation.numberedItem(level: numInfo.level)
+            }
+        }
+
+        // 3. 檢查分頁符
+        if properties.pageBreakBefore {
+            return SemanticAnnotation.pageBreak
+        }
+
+        // 4. 檢查 runs 中是否有公式或圖片（段落級別標註）
+        for run in runs {
+            // 有 OMML 公式
+            if let rawXML = run.rawXML, rawXML.contains("oMath") {
+                return SemanticAnnotation.ommlFormula
+            }
+            // 有圖片
+            if run.drawing != nil {
+                return SemanticAnnotation.unknownImage
+            }
+        }
+
+        // 5. 預設為一般段落
+        return SemanticAnnotation.paragraph
+    }
+
+    /// 從樣式名稱偵測標題層級
+    private static func detectHeadingLevel(styleName: String, styles: [Style]) -> Int? {
+        let lowerName = styleName.lowercased()
+
+        // 直接比對常見標題樣式 ID
+        // Word 預設: Heading1, Heading2, ... Heading9
+        // 或中文: 標題1, 標題2, ...
+        if lowerName.hasPrefix("heading") {
+            let numPart = lowerName.dropFirst("heading".count)
+            if let level = Int(numPart), level >= 1, level <= 9 {
+                return level
+            }
+        }
+
+        // 檢查樣式定義中的 name
+        if let style = styles.first(where: { $0.id == styleName }) {
+            let displayName = style.name.lowercased()
+            if displayName.hasPrefix("heading") {
+                let numPart = displayName.dropFirst("heading".count).trimmingCharacters(in: .whitespaces)
+                if let level = Int(numPart), level >= 1, level <= 9 {
+                    return level
+                }
+            }
+            // 檢查 basedOn 是否為標題樣式
+            if let basedOn = style.basedOn {
+                return detectHeadingLevel(styleName: basedOn, styles: styles)
+            }
+        }
+
+        return nil
+    }
+
+    /// 判斷是否為項目符號清單
+    private static func isBulletList(numId: Int, numbering: Numbering) -> Bool {
+        // 找到對應的 numbering instance (Num)
+        guard let num = numbering.nums.first(where: { $0.numId == numId }) else {
+            return false
+        }
+
+        // 找到對應的 abstract numbering (AbstractNum)
+        guard let abstractNum = numbering.abstractNums.first(where: { $0.abstractNumId == num.abstractNumId }) else {
+            return false
+        }
+
+        // 檢查第一層的格式
+        if let firstLevel = abstractNum.levels.first {
+            // bullet 格式通常是 .bullet 或文字是符號
+            if firstLevel.numFmt == .bullet {
+                return true
+            }
+            // 檢查文字是否為符號（如 •、○、■ 等）
+            let text = firstLevel.lvlText
+            let bulletSymbols = ["•", "○", "■", "□", "◆", "◇", "▪", "▫", "●", "○", "\u{F0B7}", "\u{F0A7}"]
+            for symbol in bulletSymbols {
+                if text.contains(symbol) {
+                    return true
+                }
+            }
+        }
+
+        return false
     }
 
     // MARK: - Comments Parsing
