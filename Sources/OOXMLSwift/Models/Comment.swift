@@ -106,18 +106,18 @@ public struct CommentsCollection {
     public var comments: [Comment] = []
 
     /// 取得下一個可用的註解 ID
-    mutating func nextCommentId() -> Int {
+    public mutating func nextCommentId() -> Int {
         let maxId = comments.map { $0.id }.max() ?? 0
         return maxId + 1
     }
 
     /// 新增註解
-    mutating func addComment(_ comment: Comment) {
+    public mutating func addComment(_ comment: Comment) {
         comments.append(comment)
     }
 
     /// 新增回覆
-    mutating func addReply(to parentId: Int, author: String, text: String) -> Comment? {
+    public mutating func addReply(to parentId: Int, author: String, text: String) -> Comment? {
         guard comments.contains(where: { $0.id == parentId }) else {
             return nil
         }
@@ -138,7 +138,7 @@ public struct CommentsCollection {
     }
 
     /// 標記註解為已解決
-    mutating func markAsDone(_ commentId: Int, done: Bool = true) {
+    public mutating func markAsDone(_ commentId: Int, done: Bool = true) {
         if let index = comments.firstIndex(where: { $0.id == commentId }) {
             comments[index].done = done
         }

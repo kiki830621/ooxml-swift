@@ -1427,6 +1427,11 @@ public struct ContentControl {
     public var sdt: StructuredDocumentTag
     public var content: String                     // 內容 XML 或純文字
 
+    public init(sdt: StructuredDocumentTag, content: String) {
+        self.sdt = sdt
+        self.content = content
+    }
+
     /// 建立富文本控制項
     public static func richText(tag: String, alias: String, content: String, placeholder: String? = nil) -> ContentControl {
         return ContentControl(

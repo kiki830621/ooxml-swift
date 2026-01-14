@@ -82,16 +82,16 @@ public struct WordDocument {
 
     // MARK: - Paragraph Operations
 
-    mutating func appendParagraph(_ paragraph: Paragraph) {
+    public mutating func appendParagraph(_ paragraph: Paragraph) {
         body.children.append(.paragraph(paragraph))
     }
 
-    mutating func insertParagraph(_ paragraph: Paragraph, at index: Int) {
+    public mutating func insertParagraph(_ paragraph: Paragraph, at index: Int) {
         let clampedIndex = min(max(0, index), body.children.count)
         body.children.insert(.paragraph(paragraph), at: clampedIndex)
     }
 
-    mutating func updateParagraph(at index: Int, text: String) throws {
+    public mutating func updateParagraph(at index: Int, text: String) throws {
         let paragraphIndices = body.children.enumerated().compactMap { (i, child) -> Int? in
             if case .paragraph = child { return i }
             return nil
@@ -108,7 +108,7 @@ public struct WordDocument {
         }
     }
 
-    mutating func deleteParagraph(at index: Int) throws {
+    public mutating func deleteParagraph(at index: Int) throws {
         let paragraphIndices = body.children.enumerated().compactMap { (i, child) -> Int? in
             if case .paragraph = child { return i }
             return nil
@@ -122,7 +122,7 @@ public struct WordDocument {
         body.children.remove(at: actualIndex)
     }
 
-    mutating func replaceText(find: String, with replacement: String, all: Bool) -> Int {
+    public mutating func replaceText(find: String, with replacement: String, all: Bool) -> Int {
         var count = 0
         for i in 0..<body.children.count {
             if case .paragraph(var para) = body.children[i] {
@@ -149,7 +149,7 @@ public struct WordDocument {
 
     // MARK: - Formatting
 
-    mutating func formatParagraph(at index: Int, with format: RunProperties) throws {
+    public mutating func formatParagraph(at index: Int, with format: RunProperties) throws {
         let paragraphIndices = body.children.enumerated().compactMap { (i, child) -> Int? in
             if case .paragraph = child { return i }
             return nil
@@ -168,7 +168,7 @@ public struct WordDocument {
         }
     }
 
-    mutating func setParagraphFormat(at index: Int, properties: ParagraphProperties) throws {
+    public mutating func setParagraphFormat(at index: Int, properties: ParagraphProperties) throws {
         let paragraphIndices = body.children.enumerated().compactMap { (i, child) -> Int? in
             if case .paragraph = child { return i }
             return nil
@@ -185,7 +185,7 @@ public struct WordDocument {
         }
     }
 
-    mutating func applyStyle(at index: Int, style: String) throws {
+    public mutating func applyStyle(at index: Int, style: String) throws {
         let paragraphIndices = body.children.enumerated().compactMap { (i, child) -> Int? in
             if case .paragraph = child { return i }
             return nil
@@ -204,12 +204,12 @@ public struct WordDocument {
 
     // MARK: - Table Operations
 
-    mutating func appendTable(_ table: Table) {
+    public mutating func appendTable(_ table: Table) {
         body.children.append(.table(table))
         body.tables.append(table)
     }
 
-    mutating func insertTable(_ table: Table, at index: Int) {
+    public mutating func insertTable(_ table: Table, at index: Int) {
         let clampedIndex = min(max(0, index), body.children.count)
         body.children.insert(.table(table), at: clampedIndex)
         body.tables.append(table)
@@ -234,7 +234,7 @@ public struct WordDocument {
     }
 
     /// 更新表格儲存格內容
-    mutating func updateCell(tableIndex: Int, row: Int, col: Int, text: String) throws {
+    public mutating func updateCell(tableIndex: Int, row: Int, col: Int, text: String) throws {
         let tableIndices = getTableIndices()
 
         guard tableIndex >= 0 && tableIndex < tableIndices.count else {
@@ -261,7 +261,7 @@ public struct WordDocument {
     }
 
     /// 刪除表格
-    mutating func deleteTable(at tableIndex: Int) throws {
+    public mutating func deleteTable(at tableIndex: Int) throws {
         let tableIndices = getTableIndices()
 
         guard tableIndex >= 0 && tableIndex < tableIndices.count else {
@@ -278,7 +278,7 @@ public struct WordDocument {
     }
 
     /// 合併儲存格（水平合併）
-    mutating func mergeCellsHorizontal(tableIndex: Int, row: Int, startCol: Int, endCol: Int) throws {
+    public mutating func mergeCellsHorizontal(tableIndex: Int, row: Int, startCol: Int, endCol: Int) throws {
         let tableIndices = getTableIndices()
 
         guard tableIndex >= 0 && tableIndex < tableIndices.count else {
@@ -314,7 +314,7 @@ public struct WordDocument {
     }
 
     /// 合併儲存格（垂直合併）
-    mutating func mergeCellsVertical(tableIndex: Int, col: Int, startRow: Int, endRow: Int) throws {
+    public mutating func mergeCellsVertical(tableIndex: Int, col: Int, startRow: Int, endRow: Int) throws {
         let tableIndices = getTableIndices()
 
         guard tableIndex >= 0 && tableIndex < tableIndices.count else {
@@ -350,7 +350,7 @@ public struct WordDocument {
     }
 
     /// 設定表格樣式（邊框）
-    mutating func setTableBorders(tableIndex: Int, borders: TableBorders) throws {
+    public mutating func setTableBorders(tableIndex: Int, borders: TableBorders) throws {
         let tableIndices = getTableIndices()
 
         guard tableIndex >= 0 && tableIndex < tableIndices.count else {
@@ -368,7 +368,7 @@ public struct WordDocument {
     }
 
     /// 設定儲存格底色
-    mutating func setCellShading(tableIndex: Int, row: Int, col: Int, shading: CellShading) throws {
+    public mutating func setCellShading(tableIndex: Int, row: Int, col: Int, shading: CellShading) throws {
         let tableIndices = getTableIndices()
 
         guard tableIndex >= 0 && tableIndex < tableIndices.count else {
@@ -405,7 +405,7 @@ public struct WordDocument {
     }
 
     /// 新增自訂樣式
-    mutating func addStyle(_ style: Style) throws {
+    public mutating func addStyle(_ style: Style) throws {
         // 檢查是否已存在相同 ID 的樣式
         if styles.contains(where: { $0.id == style.id }) {
             throw WordError.invalidFormat("Style with id '\(style.id)' already exists")
@@ -414,7 +414,7 @@ public struct WordDocument {
     }
 
     /// 更新樣式
-    mutating func updateStyle(id: String, with updates: StyleUpdate) throws {
+    public mutating func updateStyle(id: String, with updates: StyleUpdate) throws {
         guard let index = styles.firstIndex(where: { $0.id == id }) else {
             throw WordError.invalidFormat("Style '\(id)' not found")
         }
@@ -450,7 +450,7 @@ public struct WordDocument {
     }
 
     /// 刪除樣式（不能刪除預設樣式）
-    mutating func deleteStyle(id: String) throws {
+    public mutating func deleteStyle(id: String) throws {
         guard let index = styles.firstIndex(where: { $0.id == id }) else {
             throw WordError.invalidFormat("Style '\(id)' not found")
         }
@@ -472,7 +472,7 @@ public struct WordDocument {
     // MARK: - List Operations
 
     /// 插入項目符號清單
-    mutating func insertBulletList(items: [String], at index: Int? = nil) -> Int {
+    public mutating func insertBulletList(items: [String], at index: Int? = nil) -> Int {
         let numId = numbering.createBulletList()
 
         for (itemIndex, text) in items.enumerated() {
@@ -490,7 +490,7 @@ public struct WordDocument {
     }
 
     /// 插入編號清單
-    mutating func insertNumberedList(items: [String], at index: Int? = nil) -> Int {
+    public mutating func insertNumberedList(items: [String], at index: Int? = nil) -> Int {
         let numId = numbering.createNumberedList()
 
         for (itemIndex, text) in items.enumerated() {
@@ -508,7 +508,7 @@ public struct WordDocument {
     }
 
     /// 設定段落的清單層級
-    mutating func setListLevel(paragraphIndex: Int, level: Int) throws {
+    public mutating func setListLevel(paragraphIndex: Int, level: Int) throws {
         let paragraphIndices = body.children.enumerated().compactMap { (i, child) -> Int? in
             if case .paragraph = child { return i }
             return nil
@@ -534,7 +534,7 @@ public struct WordDocument {
     }
 
     /// 將段落添加到現有清單
-    mutating func addToList(paragraphIndex: Int, numId: Int, level: Int = 0) throws {
+    public mutating func addToList(paragraphIndex: Int, numId: Int, level: Int = 0) throws {
         let paragraphIndices = body.children.enumerated().compactMap { (i, child) -> Int? in
             if case .paragraph = child { return i }
             return nil
@@ -552,7 +552,7 @@ public struct WordDocument {
     }
 
     /// 移除段落的清單格式
-    mutating func removeFromList(paragraphIndex: Int) throws {
+    public mutating func removeFromList(paragraphIndex: Int) throws {
         let paragraphIndices = body.children.enumerated().compactMap { (i, child) -> Int? in
             if case .paragraph = child { return i }
             return nil
@@ -572,12 +572,12 @@ public struct WordDocument {
     // MARK: - Page Settings
 
     /// 設定頁面大小
-    mutating func setPageSize(_ size: PageSize) {
+    public mutating func setPageSize(_ size: PageSize) {
         sectionProperties.pageSize = size
     }
 
     /// 設定頁面大小（使用名稱）
-    mutating func setPageSize(name: String) throws {
+    public mutating func setPageSize(name: String) throws {
         guard let size = PageSize.from(name: name) else {
             throw WordError.invalidParameter("pageSize", "Unknown page size: \(name). Valid options: letter, a4, legal, a3, a5, b5, executive")
         }
@@ -585,12 +585,12 @@ public struct WordDocument {
     }
 
     /// 設定頁邊距
-    mutating func setPageMargins(_ margins: PageMargins) {
+    public mutating func setPageMargins(_ margins: PageMargins) {
         sectionProperties.pageMargins = margins
     }
 
     /// 設定頁邊距（使用名稱）
-    mutating func setPageMargins(name: String) throws {
+    public mutating func setPageMargins(name: String) throws {
         guard let margins = PageMargins.from(name: name) else {
             throw WordError.invalidParameter("margins", "Unknown margin preset: \(name). Valid options: normal, narrow, moderate, wide")
         }
@@ -598,7 +598,7 @@ public struct WordDocument {
     }
 
     /// 設定頁邊距（使用具體數值，單位：twips）
-    mutating func setPageMargins(top: Int? = nil, right: Int? = nil, bottom: Int? = nil, left: Int? = nil) {
+    public mutating func setPageMargins(top: Int? = nil, right: Int? = nil, bottom: Int? = nil, left: Int? = nil) {
         if let top = top {
             sectionProperties.pageMargins.top = top
         }
@@ -614,7 +614,7 @@ public struct WordDocument {
     }
 
     /// 設定頁面方向
-    mutating func setPageOrientation(_ orientation: PageOrientation) {
+    public mutating func setPageOrientation(_ orientation: PageOrientation) {
         sectionProperties.orientation = orientation
 
         // 如果切換方向，也要交換頁面寬高
@@ -626,7 +626,7 @@ public struct WordDocument {
     }
 
     /// 插入分頁符
-    mutating func insertPageBreak(at paragraphIndex: Int? = nil) {
+    public mutating func insertPageBreak(at paragraphIndex: Int? = nil) {
         // 分頁符是一個特殊的段落，只包含 <w:br w:type="page"/>
         var para = Paragraph()
         para.hasPageBreak = true
@@ -639,7 +639,7 @@ public struct WordDocument {
     }
 
     /// 插入分節符
-    mutating func insertSectionBreak(type: SectionBreakType = .nextPage, at paragraphIndex: Int? = nil) {
+    public mutating func insertSectionBreak(type: SectionBreakType = .nextPage, at paragraphIndex: Int? = nil) {
         // 分節符放在段落屬性中
         var para = Paragraph()
         para.properties.sectionBreak = type
@@ -663,7 +663,7 @@ public struct WordDocument {
     }
 
     /// 新增頁首
-    mutating func addHeader(text: String, type: HeaderFooterType = .default) -> Header {
+    public mutating func addHeader(text: String, type: HeaderFooterType = .default) -> Header {
         let id = nextRelationshipId
         let header = Header.withText(text, id: id, type: type)
         headers.append(header)
@@ -677,7 +677,7 @@ public struct WordDocument {
     }
 
     /// 新增含頁碼的頁首
-    mutating func addHeaderWithPageNumber(type: HeaderFooterType = .default) -> Header {
+    public mutating func addHeaderWithPageNumber(type: HeaderFooterType = .default) -> Header {
         let id = nextRelationshipId
         let header = Header.withPageNumber(id: id, type: type)
         headers.append(header)
@@ -690,7 +690,7 @@ public struct WordDocument {
     }
 
     /// 更新頁首內容
-    mutating func updateHeader(id: String, text: String) throws {
+    public mutating func updateHeader(id: String, text: String) throws {
         guard let index = headers.firstIndex(where: { $0.id == id }) else {
             throw WordError.invalidFormat("Header '\(id)' not found")
         }
@@ -701,7 +701,7 @@ public struct WordDocument {
     }
 
     /// 新增頁尾
-    mutating func addFooter(text: String, type: HeaderFooterType = .default) -> Footer {
+    public mutating func addFooter(text: String, type: HeaderFooterType = .default) -> Footer {
         let id = nextRelationshipId
         let footer = Footer.withText(text, id: id, type: type)
         footers.append(footer)
@@ -715,7 +715,7 @@ public struct WordDocument {
     }
 
     /// 新增含頁碼的頁尾
-    mutating func addFooterWithPageNumber(format: PageNumberFormat = .simple, type: HeaderFooterType = .default) -> Footer {
+    public mutating func addFooterWithPageNumber(format: PageNumberFormat = .simple, type: HeaderFooterType = .default) -> Footer {
         let id = nextRelationshipId
         let footer = Footer.withPageNumber(id: id, format: format, type: type)
         footers.append(footer)
@@ -728,7 +728,7 @@ public struct WordDocument {
     }
 
     /// 更新頁尾內容
-    mutating func updateFooter(id: String, text: String) throws {
+    public mutating func updateFooter(id: String, text: String) throws {
         guard let index = footers.firstIndex(where: { $0.id == id }) else {
             throw WordError.invalidFormat("Footer '\(id)' not found")
         }
@@ -750,7 +750,7 @@ public struct WordDocument {
     }
 
     /// 從 Base64 插入圖片
-    mutating func insertImage(
+    public mutating func insertImage(
         base64: String,
         fileName: String,
         widthPx: Int,
@@ -786,7 +786,7 @@ public struct WordDocument {
     }
 
     /// 從檔案路徑插入圖片
-    mutating func insertImage(
+    public mutating func insertImage(
         path: String,
         widthPx: Int,
         heightPx: Int,
@@ -821,7 +821,7 @@ public struct WordDocument {
     }
 
     /// 更新圖片大小
-    mutating func updateImage(imageId: String, widthPx: Int? = nil, heightPx: Int? = nil) throws {
+    public mutating func updateImage(imageId: String, widthPx: Int? = nil, heightPx: Int? = nil) throws {
         // 搜尋所有段落找到含有此圖片的 Run
         for i in 0..<body.children.count {
             if case .paragraph(var para) = body.children[i] {
@@ -844,7 +844,7 @@ public struct WordDocument {
     }
 
     /// 設定圖片樣式
-    mutating func setImageStyle(
+    public mutating func setImageStyle(
         imageId: String,
         hasBorder: Bool? = nil,
         borderColor: String? = nil,
@@ -879,7 +879,7 @@ public struct WordDocument {
     }
 
     /// 刪除圖片
-    mutating func deleteImage(imageId: String) throws {
+    public mutating func deleteImage(imageId: String) throws {
         // 移除圖片資源
         guard let resourceIndex = images.firstIndex(where: { $0.id == imageId }) else {
             throw WordError.invalidFormat("Image '\(imageId)' not found")
@@ -934,7 +934,7 @@ public struct WordDocument {
     }
 
     /// 插入外部超連結
-    mutating func insertHyperlink(
+    public mutating func insertHyperlink(
         url: String,
         text: String,
         at paragraphIndex: Int? = nil,
@@ -983,7 +983,7 @@ public struct WordDocument {
     }
 
     /// 插入內部連結（連結到書籤）
-    mutating func insertInternalLink(
+    public mutating func insertInternalLink(
         bookmarkName: String,
         text: String,
         at paragraphIndex: Int? = nil,
@@ -1023,7 +1023,7 @@ public struct WordDocument {
     }
 
     /// 更新超連結
-    mutating func updateHyperlink(hyperlinkId: String, text: String? = nil, url: String? = nil) throws {
+    public mutating func updateHyperlink(hyperlinkId: String, text: String? = nil, url: String? = nil) throws {
         for i in 0..<body.children.count {
             if case .paragraph(var para) = body.children[i] {
                 for j in 0..<para.hyperlinks.count {
@@ -1050,7 +1050,7 @@ public struct WordDocument {
     }
 
     /// 刪除超連結
-    mutating func deleteHyperlink(hyperlinkId: String) throws {
+    public mutating func deleteHyperlink(hyperlinkId: String) throws {
         for i in 0..<body.children.count {
             if case .paragraph(var para) = body.children[i] {
                 if let index = para.hyperlinks.firstIndex(where: { $0.id == hyperlinkId }) {
@@ -1092,7 +1092,7 @@ public struct WordDocument {
     // MARK: - Bookmark Operations
 
     /// 插入書籤
-    mutating func insertBookmark(
+    public mutating func insertBookmark(
         name: String,
         at paragraphIndex: Int? = nil
     ) throws -> Int {
@@ -1152,7 +1152,7 @@ public struct WordDocument {
     }
 
     /// 刪除書籤
-    mutating func deleteBookmark(name: String) throws {
+    public mutating func deleteBookmark(name: String) throws {
         for i in 0..<body.children.count {
             if case .paragraph(var para) = body.children[i] {
                 if let index = para.bookmarks.firstIndex(where: { $0.name == name }) {
@@ -1185,7 +1185,7 @@ public struct WordDocument {
     // MARK: - Comment Operations
 
     /// 插入註解
-    mutating func insertComment(
+    public mutating func insertComment(
         text: String,
         author: String,
         paragraphIndex: Int
@@ -1220,7 +1220,7 @@ public struct WordDocument {
     }
 
     /// 更新註解
-    mutating func updateComment(commentId: Int, text: String) throws {
+    public mutating func updateComment(commentId: Int, text: String) throws {
         guard let index = comments.comments.firstIndex(where: { $0.id == commentId }) else {
             throw CommentError.notFound(commentId)
         }
@@ -1229,7 +1229,7 @@ public struct WordDocument {
     }
 
     /// 刪除註解
-    mutating func deleteComment(commentId: Int) throws {
+    public mutating func deleteComment(commentId: Int) throws {
         guard let index = comments.comments.firstIndex(where: { $0.id == commentId }) else {
             throw CommentError.notFound(commentId)
         }
@@ -1263,14 +1263,14 @@ public struct WordDocument {
     // MARK: - Track Changes Operations
 
     /// 啟用修訂追蹤
-    mutating func enableTrackChanges(author: String = "Unknown") {
+    public mutating func enableTrackChanges(author: String = "Unknown") {
         revisions.settings.enabled = true
         revisions.settings.author = author
         revisions.settings.dateTime = Date()
     }
 
     /// 停用修訂追蹤
-    mutating func disableTrackChanges() {
+    public mutating func disableTrackChanges() {
         revisions.settings.enabled = false
     }
 
@@ -1288,7 +1288,7 @@ public struct WordDocument {
     }
 
     /// 接受修訂
-    mutating func acceptRevision(revisionId: Int) throws {
+    public mutating func acceptRevision(revisionId: Int) throws {
         guard let index = revisions.revisions.firstIndex(where: { $0.id == revisionId }) else {
             throw RevisionError.notFound(revisionId)
         }
@@ -1332,7 +1332,7 @@ public struct WordDocument {
     }
 
     /// 拒絕修訂
-    mutating func rejectRevision(revisionId: Int) throws {
+    public mutating func rejectRevision(revisionId: Int) throws {
         guard let index = revisions.revisions.firstIndex(where: { $0.id == revisionId }) else {
             throw RevisionError.notFound(revisionId)
         }
@@ -1376,7 +1376,7 @@ public struct WordDocument {
     }
 
     /// 接受所有修訂
-    mutating func acceptAllRevisions() {
+    public mutating func acceptAllRevisions() {
         // 從後往前接受，避免索引問題
         for revision in revisions.revisions.reversed() {
             try? acceptRevision(revisionId: revision.id)
@@ -1384,7 +1384,7 @@ public struct WordDocument {
     }
 
     /// 拒絕所有修訂
-    mutating func rejectAllRevisions() {
+    public mutating func rejectAllRevisions() {
         // 從後往前拒絕，避免索引問題
         for revision in revisions.revisions.reversed() {
             try? rejectRevision(revisionId: revision.id)
@@ -1394,7 +1394,7 @@ public struct WordDocument {
     // MARK: - Footnote Operations
 
     /// 插入腳註
-    mutating func insertFootnote(
+    public mutating func insertFootnote(
         text: String,
         paragraphIndex: Int
     ) throws -> Int {
@@ -1427,7 +1427,7 @@ public struct WordDocument {
     }
 
     /// 刪除腳註
-    mutating func deleteFootnote(footnoteId: Int) throws {
+    public mutating func deleteFootnote(footnoteId: Int) throws {
         guard let index = footnotes.footnotes.firstIndex(where: { $0.id == footnoteId }) else {
             throw FootnoteError.notFound(footnoteId)
         }
@@ -1460,7 +1460,7 @@ public struct WordDocument {
     // MARK: - Endnote Operations
 
     /// 插入尾註
-    mutating func insertEndnote(
+    public mutating func insertEndnote(
         text: String,
         paragraphIndex: Int
     ) throws -> Int {
@@ -1493,7 +1493,7 @@ public struct WordDocument {
     }
 
     /// 刪除尾註
-    mutating func deleteEndnote(endnoteId: Int) throws {
+    public mutating func deleteEndnote(endnoteId: Int) throws {
         guard let index = endnotes.endnotes.firstIndex(where: { $0.id == endnoteId }) else {
             throw EndnoteError.notFound(endnoteId)
         }
@@ -1587,7 +1587,7 @@ extension WordDocument {
     // MARK: - Table of Contents
 
     /// 插入目錄
-    mutating func insertTableOfContents(
+    public mutating func insertTableOfContents(
         at index: Int? = nil,
         title: String? = "Contents",
         headingLevels: ClosedRange<Int> = 1...3,
@@ -1618,7 +1618,7 @@ extension WordDocument {
     // MARK: - Form Controls
 
     /// 插入文字欄位
-    mutating func insertTextField(
+    public mutating func insertTextField(
         at paragraphIndex: Int,
         name: String,
         defaultValue: String? = nil,
@@ -1649,7 +1649,7 @@ extension WordDocument {
     }
 
     /// 插入核取方塊
-    mutating func insertCheckbox(
+    public mutating func insertCheckbox(
         at paragraphIndex: Int,
         name: String,
         isChecked: Bool = false
@@ -1678,7 +1678,7 @@ extension WordDocument {
     }
 
     /// 插入下拉選單
-    mutating func insertDropdown(
+    public mutating func insertDropdown(
         at paragraphIndex: Int,
         name: String,
         options: [String],
@@ -1710,7 +1710,7 @@ extension WordDocument {
     // MARK: - Mathematical Equations
 
     /// 插入數學公式
-    mutating func insertEquation(
+    public mutating func insertEquation(
         at paragraphIndex: Int? = nil,
         latex: String,
         displayMode: Bool = false
@@ -1755,7 +1755,7 @@ extension WordDocument {
     // MARK: - Advanced Paragraph Formatting
 
     /// 設定段落邊框
-    mutating func setParagraphBorder(
+    public mutating func setParagraphBorder(
         at paragraphIndex: Int,
         border: ParagraphBorder
     ) throws {
@@ -1777,7 +1777,7 @@ extension WordDocument {
     }
 
     /// 設定段落底色
-    mutating func setParagraphShading(
+    public mutating func setParagraphShading(
         at paragraphIndex: Int,
         fill: String,
         pattern: ShadingPattern? = nil
@@ -1800,7 +1800,7 @@ extension WordDocument {
     }
 
     /// 設定字元間距
-    mutating func setCharacterSpacing(
+    public mutating func setCharacterSpacing(
         at paragraphIndex: Int,
         spacing: Int? = nil,
         position: Int? = nil,
@@ -1828,7 +1828,7 @@ extension WordDocument {
     }
 
     /// 設定文字效果
-    mutating func setTextEffect(
+    public mutating func setTextEffect(
         at paragraphIndex: Int,
         effect: TextEffect
     ) throws {
@@ -1854,7 +1854,7 @@ extension WordDocument {
     // MARK: - Drawing Operations
 
     /// 插入繪圖元素（圖片）到指定段落
-    mutating func insertDrawing(_ drawing: Drawing, at paragraphIndex: Int) throws {
+    public mutating func insertDrawing(_ drawing: Drawing, at paragraphIndex: Int) throws {
         guard paragraphIndex >= 0 && paragraphIndex <= getParagraphs().count else {
             throw WordError.invalidIndex(paragraphIndex)
         }
@@ -1884,7 +1884,7 @@ extension WordDocument {
     // MARK: - Field Code Operations
 
     /// 插入欄位代碼到指定段落
-    mutating func insertFieldCode<F: FieldCode>(_ field: F, at paragraphIndex: Int) throws {
+    public mutating func insertFieldCode<F: FieldCode>(_ field: F, at paragraphIndex: Int) throws {
         guard paragraphIndex >= 0 && paragraphIndex <= getParagraphs().count else {
             throw WordError.invalidIndex(paragraphIndex)
         }
@@ -1915,7 +1915,7 @@ extension WordDocument {
     // MARK: - Content Control (SDT) Operations
 
     /// 插入內容控制項到指定段落
-    mutating func insertContentControl(_ control: ContentControl, at paragraphIndex: Int) throws {
+    public mutating func insertContentControl(_ control: ContentControl, at paragraphIndex: Int) throws {
         guard paragraphIndex >= 0 && paragraphIndex <= getParagraphs().count else {
             throw WordError.invalidIndex(paragraphIndex)
         }
@@ -1947,7 +1947,7 @@ extension WordDocument {
     // MARK: - Repeating Section Operations
 
     /// 插入重複區段到指定位置
-    mutating func insertRepeatingSection(_ section: RepeatingSection, at index: Int) throws {
+    public mutating func insertRepeatingSection(_ section: RepeatingSection, at index: Int) throws {
         guard index >= 0 && index <= body.children.count else {
             throw WordError.invalidIndex(index)
         }
