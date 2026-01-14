@@ -23,7 +23,7 @@ public struct Paragraph {
     }
 
     /// 取得段落純文字
-    func getText() -> String {
+    public func getText() -> String {
         var text = runs.map { $0.text }.joined()
         // 加入超連結文字
         for hyperlink in hyperlinks {
@@ -164,7 +164,7 @@ public struct NumberingInfo {
 
 extension Paragraph {
     /// 轉換為 OOXML XML 字串
-    func toXML() -> String {
+    public func toXML() -> String {
         var xml = "<w:p>"
 
         // Paragraph Properties
@@ -233,7 +233,7 @@ extension Paragraph {
 
 extension ParagraphProperties {
     /// 轉換為 OOXML XML 字串
-    func toXML() -> String {
+    public func toXML() -> String {
         var parts: [String] = []
 
         // 樣式

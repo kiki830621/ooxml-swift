@@ -19,7 +19,7 @@ public struct Table {
     }
 
     /// 取得表格純文字
-    func getText() -> String {
+    public func getText() -> String {
         return rows.map { row in
             row.cells.map { cell in
                 cell.getText()
@@ -28,7 +28,7 @@ public struct Table {
     }
 
     /// 轉換為 Markdown 表格
-    func toMarkdown() -> String {
+    public func toMarkdown() -> String {
         guard !rows.isEmpty else { return "" }
 
         var result: [String] = []
@@ -104,7 +104,7 @@ public struct TableCell {
     }
 
     /// 取得儲存格純文字
-    func getText() -> String {
+    public func getText() -> String {
         return paragraphs.map { $0.getText() }.joined(separator: "\n")
     }
 }
@@ -204,7 +204,7 @@ public struct CellShading {
     }
 
     /// 產生 XML 字串（供段落屬性使用）
-    func toXML() -> String {
+    public func toXML() -> String {
         var attrs = ["w:fill=\"\(fill)\""]
 
         if let pattern = pattern {
@@ -298,7 +298,7 @@ public enum TableLayout: String, Codable {
 
 extension Table {
     /// 轉換為 OOXML XML 字串
-    func toXML() -> String {
+    public func toXML() -> String {
         var xml = "<w:tbl>"
 
         // Table Properties
@@ -325,7 +325,7 @@ extension Table {
 }
 
 extension TableProperties {
-    func toXML() -> String {
+    public func toXML() -> String {
         var parts: [String] = ["<w:tblPr>"]
 
         // 寬度
@@ -365,7 +365,7 @@ extension TableProperties {
 }
 
 extension TableBorders {
-    func toXML() -> String {
+    public func toXML() -> String {
         var parts: [String] = ["<w:tblBorders>"]
 
         if let top = top { parts.append(top.toXML(name: "top")) }
@@ -381,13 +381,13 @@ extension TableBorders {
 }
 
 extension Border {
-    func toXML(name: String) -> String {
+    public func toXML(name: String) -> String {
         return "<w:\(name) w:val=\"\(style.rawValue)\" w:sz=\"\(size)\" w:color=\"\(color)\"/>"
     }
 }
 
 extension TableRow {
-    func toXML() -> String {
+    public func toXML() -> String {
         var xml = "<w:tr>"
 
         // Row Properties
@@ -417,7 +417,7 @@ extension TableRow {
 }
 
 extension TableCell {
-    func toXML() -> String {
+    public func toXML() -> String {
         var xml = "<w:tc>"
 
         // Cell Properties
@@ -438,7 +438,7 @@ extension TableCell {
 }
 
 extension TableCellProperties {
-    func toXML() -> String {
+    public func toXML() -> String {
         var parts: [String] = ["<w:tcPr>"]
 
         // 寬度

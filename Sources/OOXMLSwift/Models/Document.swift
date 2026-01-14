@@ -37,10 +37,17 @@ public struct WordDocument {
     // MARK: - Document Info
 
     public struct Info {
-        let paragraphCount: Int
-        let characterCount: Int
-        let wordCount: Int
-        let tableCount: Int
+        public let paragraphCount: Int
+        public let characterCount: Int
+        public let wordCount: Int
+        public let tableCount: Int
+
+        public init(paragraphCount: Int, characterCount: Int, wordCount: Int, tableCount: Int) {
+            self.paragraphCount = paragraphCount
+            self.characterCount = characterCount
+            self.wordCount = wordCount
+            self.tableCount = tableCount
+        }
     }
 
     public func getInfo() -> Info {
