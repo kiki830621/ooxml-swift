@@ -43,7 +43,7 @@ public struct WordDocument {
         let tableCount: Int
     }
 
-    func getInfo() -> Info {
+    public func getInfo() -> Info {
         let paragraphs = getParagraphs()
         let text = getText()
         let words = text.split(whereSeparator: { $0.isWhitespace || $0.isNewline })
@@ -58,7 +58,7 @@ public struct WordDocument {
 
     // MARK: - Text Operations
 
-    func getText() -> String {
+    public func getText() -> String {
         var result = ""
         for child in body.children {
             switch child {
@@ -71,7 +71,7 @@ public struct WordDocument {
         return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    func getParagraphs() -> [Paragraph] {
+    public func getParagraphs() -> [Paragraph] {
         return body.children.compactMap { child in
             if case .paragraph(let para) = child {
                 return para
@@ -216,7 +216,7 @@ public struct WordDocument {
     }
 
     /// 取得所有表格
-    func getTables() -> [Table] {
+    public func getTables() -> [Table] {
         return body.children.compactMap { child in
             if case .table(let table) = child {
                 return table
@@ -395,12 +395,12 @@ public struct WordDocument {
     // MARK: - Style Management
 
     /// 取得所有樣式
-    func getStyles() -> [Style] {
+    public func getStyles() -> [Style] {
         return styles
     }
 
     /// 根據 ID 取得樣式
-    func getStyle(by id: String) -> Style? {
+    public func getStyle(by id: String) -> Style? {
         return styles.first { $0.id == id }
     }
 
@@ -896,7 +896,7 @@ public struct WordDocument {
     }
 
     /// 取得所有圖片資訊
-    func getImages() -> [(id: String, fileName: String, widthPx: Int, heightPx: Int)] {
+    public func getImages() -> [(id: String, fileName: String, widthPx: Int, heightPx: Int)] {
         var result: [(id: String, fileName: String, widthPx: Int, heightPx: Int)] = []
 
         // 從 images 和 body 中收集圖片資訊
@@ -1068,7 +1068,7 @@ public struct WordDocument {
     }
 
     /// 列出所有超連結
-    func getHyperlinks() -> [(id: String, text: String, url: String?, anchor: String?, type: String)] {
+    public func getHyperlinks() -> [(id: String, text: String, url: String?, anchor: String?, type: String)] {
         var result: [(id: String, text: String, url: String?, anchor: String?, type: String)] = []
 
         for child in body.children {
@@ -1166,7 +1166,7 @@ public struct WordDocument {
     }
 
     /// 列出所有書籤
-    func getBookmarks() -> [(id: Int, name: String, paragraphIndex: Int)] {
+    public func getBookmarks() -> [(id: Int, name: String, paragraphIndex: Int)] {
         var result: [(id: Int, name: String, paragraphIndex: Int)] = []
         var paragraphCount = 0
 
@@ -1253,7 +1253,7 @@ public struct WordDocument {
     }
 
     /// 列出所有註解
-    func getComments() -> [(id: Int, author: String, text: String, paragraphIndex: Int, date: Date)] {
+    public func getComments() -> [(id: Int, author: String, text: String, paragraphIndex: Int, date: Date)] {
         return comments.comments.map { comment in
             (id: comment.id, author: comment.author, text: comment.text,
              paragraphIndex: comment.paragraphIndex, date: comment.date)
@@ -1275,12 +1275,12 @@ public struct WordDocument {
     }
 
     /// 檢查修訂追蹤是否啟用
-    func isTrackChangesEnabled() -> Bool {
+    public func isTrackChangesEnabled() -> Bool {
         return revisions.settings.enabled
     }
 
     /// 取得所有修訂
-    func getRevisions() -> [(id: Int, type: String, author: String, paragraphIndex: Int, originalText: String?, newText: String?)] {
+    public func getRevisions() -> [(id: Int, type: String, author: String, paragraphIndex: Int, originalText: String?, newText: String?)] {
         return revisions.revisions.map { rev in
             (id: rev.id, type: rev.type.rawValue, author: rev.author,
              paragraphIndex: rev.paragraphIndex, originalText: rev.originalText, newText: rev.newText)
@@ -1451,7 +1451,7 @@ public struct WordDocument {
     }
 
     /// 列出所有腳註
-    func getFootnotes() -> [(id: Int, text: String, paragraphIndex: Int)] {
+    public func getFootnotes() -> [(id: Int, text: String, paragraphIndex: Int)] {
         return footnotes.footnotes.map { footnote in
             (id: footnote.id, text: footnote.text, paragraphIndex: footnote.paragraphIndex)
         }
@@ -1517,7 +1517,7 @@ public struct WordDocument {
     }
 
     /// 列出所有尾註
-    func getEndnotes() -> [(id: Int, text: String, paragraphIndex: Int)] {
+    public func getEndnotes() -> [(id: Int, text: String, paragraphIndex: Int)] {
         return endnotes.endnotes.map { endnote in
             (id: endnote.id, text: endnote.text, paragraphIndex: endnote.paragraphIndex)
         }
@@ -1525,7 +1525,7 @@ public struct WordDocument {
 
     // MARK: - Export
 
-    func toMarkdown() -> String {
+    public func toMarkdown() -> String {
         var result = ""
         for child in body.children {
             switch child {
